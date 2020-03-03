@@ -5,6 +5,7 @@ import re
 from enum import Enum
 from glob import glob
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 
 class Severity(Enum):
@@ -71,8 +72,8 @@ class AssetChecker:
         ALLOWED_EXTENSIONS = [".png", ".dae", ".mtl", ".obj"]
         for f in files:
             if f.suffix not in ALLOWED_EXTENSIONS:
-                self.add_error(model_name, Severity.ERR, "Illegal extension \
-                               in meshes folder: " + f.suffix)
+                self.add_error(model_name, Severity.ERR, "Illegal extension "
+                               "in meshes folder: " + f.suffix)
             elif f.suffix == ".png" and self.check_texture_name(f) is False:
                 self.add_error(model_name, Severity.ERR,
                                "Illegal texture name: " + f.name)
@@ -127,12 +128,35 @@ class AssetChecker:
             if not valid and self.autofix is True:
                 self.fix_mtl(mtl_file)
 
+    def check_model_config(self, model_name, model_dir):
+        # Checks .config file
+        filepath = model_dir + 'model.config'
+        if not os.path.exists(filepath):
+            return
+        tree = ET.parse(filepath)
+        # Will throw if nodes are non existent, assumes valid template
+        author_node = tree.getroot().find('author')
+        if author_node.find('name').text in [None, "name"]:
+            # Author name empty
+            self.add_error(model_name, Severity.WARN,
+                           "Author name field in .config file is empty")
+        if author_node.find('email').text is None:
+            # Author email empty
+            self.add_error(model_name, Severity.WARN,
+                           "Author email field in .config file is empty")
+        if tree.getroot().find('description').text.strip() in \
+                [None, "Description of the model"]:
+            # Model description empty
+            self.add_error(model_name, Severity.ERR,
+                           "Model description in .config file is empty")
+
     def check_model(self, model_dir):
         model_name = model_dir.rstrip('/').split('/')[-1]
         self.check_model_name(model_name)
         self.check_folder_structure(model_name, model_dir)
         # Rest of checks...
         self.check_mtl(model_name, model_dir + 'meshes/')
+        self.check_model_config(model_name, model_dir)
 
         if model_name in self.errors:
             return self.errors[model_name]
@@ -156,8 +180,8 @@ class AssetChecker:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Check that gazebo models and meshes follow \
-            a convention that will reduce risk of issues and make rendering results more consistent")
+    parser = argparse.ArgumentParser(description="Check that gazebo models and meshes follow "
+            "a convention that will reduce risk of issues and make rendering results more consistent")
     parser.add_argument('model_paths', metavar='path', type=str, nargs='+',
                     help='Path where models are stored')
     parser.add_argument('-f', dest='autofix', action='store_const',
