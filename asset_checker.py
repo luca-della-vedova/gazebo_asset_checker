@@ -55,12 +55,16 @@ class AssetChecker:
             self.add_error(model_name, Verbosity.ERR,
                            "Model name not CamelCase")
 
-    def check_texture_name(self, filename):
+    def check_texture_name(self, filename, model_name):
         ALLOWED_TEXTURE_NAMES = ["Diffuse", "Normal", "Rough", "Metal"]
         # Make sure it is a legal texture name
+        # ModelName.png is also acceptable, as a model thumbnail
+        # TODO this rule also allows the texture to be specified as ModelName.png
+        # which we maybe don't want
         texture_end = filename.stem.rsplit('_', 1)[-1]
-        if '_' not in filename.stem or \
-                texture_end not in ALLOWED_TEXTURE_NAMES:
+        if ('_' not in filename.stem or \
+                texture_end not in ALLOWED_TEXTURE_NAMES) and \
+                filename.stem != model_name:
             return False
         return True
 
@@ -82,7 +86,7 @@ class AssetChecker:
             if f.suffix not in ALLOWED_EXTENSIONS:
                 self.add_error(model_name, Verbosity.ERR, "Illegal extension "
                                "in meshes folder: " + f.suffix)
-            elif f.suffix == ".png" and self.check_texture_name(f) is False:
+            elif f.suffix == ".png" and self.check_texture_name(f, model_name) is False:
                 self.add_error(model_name, Verbosity.ERR,
                                "Illegal texture name: " + f.name)
             # TODO Iterate over all obj, make sure there is matching mtl
