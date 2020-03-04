@@ -17,26 +17,16 @@ class Verbosity(Enum):
     def __ge__(self, b):
         return self.value >= b
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
 class AssetError:
 
-    COLORMAP = {Verbosity.INFO : '\033[94m', Verbosity.WARN : '\033[93m', Verbosity.ERR : '\033[91m'}
+    COLORMAP = {Verbosity.INFO : '\033[94m', Verbosity.WARN : '\033[93m', Verbosity.ERR : '\033[91m', 'end' : '\033[0m'}
 
     def __init__(self, severity, message):
         self.severity = severity
         self.message = message
 
     def __str__(self):
-        return "\t" + self.COLORMAP[self.severity] + self.severity.name + ": " + self.message + bcolors.ENDC
+        return "\t" + self.COLORMAP[self.severity] + self.severity.name + ": " + self.message + self.COLORMAP['end']
 
 
 class AssetChecker:
