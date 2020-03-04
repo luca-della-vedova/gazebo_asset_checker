@@ -8,17 +8,35 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 
-class Severity(Enum):
-    INFO = 0
+class Verbosity(Enum):
+    ERR = 0
     WARN = 1
-    ERR = 2
+    INFO = 2
 
+    # Comparison operator
+    def __ge__(self, b):
+        return self.value >= b
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class AssetError:
+
+    COLORMAP = {Verbosity.INFO : '\033[94m', Verbosity.WARN : '\033[93m', Verbosity.ERR : '\033[91m'}
 
     def __init__(self, severity, message):
         self.severity = severity
         self.message = message
+
+    def __str__(self):
+        return "\t" + self.COLORMAP[self.severity] + self.severity.name + ": " + self.message + bcolors.ENDC
 
 
 class AssetChecker:
@@ -44,7 +62,7 @@ class AssetChecker:
                 any(c.islower() for c in model_name) and \
                 '_' not in model_name and model_name[0].isupper()
         if not valid:
-            self.add_error(model_name, Severity.ERR,
+            self.add_error(model_name, Verbosity.ERR,
                            "Model name not CamelCase")
 
     def check_texture_name(self, filename):
@@ -66,16 +84,16 @@ class AssetChecker:
             return
         folders = [p for p in Path(mesh_dir).iterdir() if p.is_dir()]
         if len(folders) > 0:
-            self.add_error(model_name, Severity.ERR,
+            self.add_error(model_name, Verbosity.ERR,
                            "meshes folder contains subfolders")
         files = [p for p in Path(mesh_dir).iterdir() if p.is_file()]
         ALLOWED_EXTENSIONS = [".png", ".dae", ".mtl", ".obj"]
         for f in files:
             if f.suffix not in ALLOWED_EXTENSIONS:
-                self.add_error(model_name, Severity.ERR, "Illegal extension "
+                self.add_error(model_name, Verbosity.ERR, "Illegal extension "
                                "in meshes folder: " + f.suffix)
             elif f.suffix == ".png" and self.check_texture_name(f) is False:
-                self.add_error(model_name, Severity.ERR,
+                self.add_error(model_name, Verbosity.ERR,
                                "Illegal texture name: " + f.name)
             # TODO Iterate over all obj, make sure there is matching mtl
 
@@ -84,18 +102,18 @@ class AssetChecker:
         # and meshes subfolder
         all_items = [p for p in Path(model_dir).iterdir()]
         if len(all_items) > 3:
-            self.add_error(model_name, Severity.ERR,
+            self.add_error(model_name, Verbosity.ERR,
                            "Model folder contains more than three items")
         files = [p.name for p in all_items if p.is_file()]
         folders = [p.name for p in all_items if p.is_dir()]
         if "meshes" not in folders:
-            self.add_error(model_name, Severity.ERR,
+            self.add_error(model_name, Verbosity.ERR,
                            "Model missing mesh subfolder")
         if "model.sdf" not in files:
-            self.add_error(model_name, Severity.ERR,
+            self.add_error(model_name, Verbosity.ERR,
                            "Model missing model.sdf")
         if "model.config" not in files:
-            self.add_error(model_name, Severity.ERR,
+            self.add_error(model_name, Verbosity.ERR,
                            "Model missing model.config")
 
     def fix_mtl(self, mtl_file):
@@ -123,7 +141,7 @@ class AssetChecker:
                             if val != 0.8:
                                 valid = False
             if not valid:
-                self.add_error(model_name, Severity.ERR,
+                self.add_error(model_name, Verbosity.ERR,
                                "Kd value in mtl different from default of 0.8")
             if not valid and self.autofix is True:
                 self.fix_mtl(mtl_file)
@@ -138,16 +156,16 @@ class AssetChecker:
         author_node = tree.getroot().find('author')
         if author_node.find('name').text in [None, "name"]:
             # Author name empty
-            self.add_error(model_name, Severity.WARN,
+            self.add_error(model_name, Verbosity.WARN,
                            "Author name field in .config file is empty")
         if author_node.find('email').text is None:
             # Author email empty
-            self.add_error(model_name, Severity.WARN,
+            self.add_error(model_name, Verbosity.WARN,
                            "Author email field in .config file is empty")
         if tree.getroot().find('description').text.strip() in \
                 [None, "Description of the model"]:
             # Model description empty
-            self.add_error(model_name, Severity.ERR,
+            self.add_error(model_name, Verbosity.ERR,
                            "Model description in .config file is empty")
 
     def check_model(self, model_dir):
@@ -166,14 +184,15 @@ class AssetChecker:
         for model_dir in self.model_dirs:
             self.check_model(model_dir)
 
-    def print_report(self, verbose=False):
+    def print_report(self, verbose):
         num_errors = 0
         for name, errors in self.errors.items():
-            if verbose:
+            if verbose >= Verbosity.ERR.value:
                 print("Issues found in model " + name)
                 for err in errors:
-                    print("\t" + err.message)
-            num_errors += len(errors)
+                    if verbose >= err.severity.value:
+                        print(err)
+                        num_errors += 1
         print(str(len(self.model_dirs)) + " assets checked, " +
               str(num_errors) + " errors found")
         print(str(self.num_fixes) + " errors fixed")
@@ -187,9 +206,9 @@ if __name__ == "__main__":
     parser.add_argument('-f', dest='autofix', action='store_const',
                     const=True, default=False,
                     help='Attempt to fix issues (experimental)')
-    parser.add_argument('-v', dest='verbose', action='store_const',
-                    const=True, default=False,
-                    help='Print detailed report on all issues found')
+    parser.add_argument('-v', dest='verbose', action='count',
+                    default=-1,
+                    help='Verbosity level (INFO - WARN - ERR)')
     args = parser.parse_args()
     for path in args.model_paths:
         checker = AssetChecker(path, autofix=args.autofix)
