@@ -16,3 +16,4 @@ For now it supports the following rules:
   * Texture naming: Error if not following PBR naming convention (i.e. ModelName_Diffuse.png)
 * MTL diffuse: Error if not set to blender's default (0.8)
 * Author name / email and model description in model.config file
+* Model scale should be 1 and pose should be 0

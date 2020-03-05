@@ -17,9 +17,10 @@ class Verbosity(Enum):
     def __ge__(self, b):
         return self.value >= b
 
+
 class AssetError:
 
-    COLORMAP = {Verbosity.INFO : '\033[94m', Verbosity.WARN : '\033[93m', Verbosity.ERR : '\033[91m', 'end' : '\033[0m'}
+    COLORMAP = {Verbosity.INFO: '\033[94m', Verbosity.WARN: '\033[93m', Verbosity.ERR: '\033[91m', 'end': '\033[0m'}
 
     def __init__(self, severity, message):
         self.severity = severity
@@ -62,7 +63,7 @@ class AssetChecker:
         # TODO this rule also allows the texture to be specified as ModelName.png
         # which we maybe don't want
         texture_end = filename.stem.rsplit('_', 1)[-1]
-        if ('_' not in filename.stem or \
+        if ('_' not in filename.stem or
                 texture_end not in ALLOWED_TEXTURE_NAMES) and \
                 filename.stem != model_name:
             return False
@@ -162,6 +163,23 @@ class AssetChecker:
             self.add_error(model_name, Verbosity.ERR,
                            "Model description in .config file is empty")
 
+    def check_model_sdf(self, model_name, model_dir):
+        filepath = model_dir + 'model.sdf'
+        if not os.path.exists(filepath):
+            return
+        tree = ET.parse(filepath)
+        # Again, will throw if no model exists, assuming correct structure
+        for pose in tree.iter('pose'):
+            pose = [float(x) for x in pose.text.split(' ')]
+            if not all(p == 0 for p in pose):
+                self.add_error(model_name, Verbosity.WARN,
+                               "Model pose is not 0")
+        for scale in tree.iter('scale'):
+            scale = [float(x) for x in scale.text.split(' ')]
+            if not all(s == 1 for s in scale):
+                self.add_error(model_name, Verbosity.WARN,
+                               "Model scale is not 1")
+
     def check_model(self, model_dir):
         model_name = model_dir.rstrip('/').split('/')[-1]
         self.check_model_name(model_name)
@@ -169,6 +187,7 @@ class AssetChecker:
         # Rest of checks...
         self.check_mtl(model_name, model_dir + 'meshes/')
         self.check_model_config(model_name, model_dir)
+        self.check_model_sdf(model_name, model_dir)
 
         if model_name in self.errors:
             return self.errors[model_name]
