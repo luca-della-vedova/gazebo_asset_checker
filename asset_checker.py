@@ -9,18 +9,23 @@ import xml.etree.ElementTree as ET
 
 
 class Verbosity(Enum):
-    ERR = 0
-    WARN = 1
-    INFO = 2
+    CRIT = 0
+    ERR = 1
+    WARN = 2
+    INFO = 3
 
     # Comparison operator
     def __ge__(self, b):
-        return self.value >= b
+        return self.value >= b.value
+
+    def __le__(self, b):
+        return self.value <= b.value
 
 
 class AssetError:
 
-    COLORMAP = {Verbosity.INFO: '\033[94m', Verbosity.WARN: '\033[93m', Verbosity.ERR: '\033[91m', 'end': '\033[0m'}
+    COLORMAP = {Verbosity.INFO: '\033[94m', Verbosity.WARN: '\033[93m', Verbosity.ERR: '\033[91m',
+            Verbosity.CRIT: '\033[91m', 'end': '\033[0m'}
 
     def __init__(self, severity, message):
         self.severity = severity
@@ -29,6 +34,9 @@ class AssetError:
     def __str__(self):
         return "\t" + self.COLORMAP[self.severity] + self.severity.name + ": " + self.message + self.COLORMAP['end']
 
+    # Used to sort in order of severity
+    def __lt__(self, b):
+        return self.severity.value < b.severity.value
 
 class AssetChecker:
 
@@ -115,8 +123,11 @@ class AssetChecker:
         for line in fileinput.FileInput(mtl_file, inplace=1):
             if 'Kd' in line and 'map_' not in line:
                 # Substitute all floating point values with 0.800000
-                # TODO match number of decimal digits
-                line = re.sub("[+-]?([0-9]*[.])?[0-9]+", "0.800000", line)
+                # Get the number of decimal digits before the change
+                last_val = line.split(' ')[-1].strip()
+                num_digits = len(last_val.split('.')[-1])
+                val_string = '{0:.{prec}f}'.format(0.8, prec=num_digits)
+                line = re.sub("[+-]?([0-9]*[.])?[0-9]+", val_string, line)
             print(line, end='')
         self.num_fixes += 1
 
@@ -126,20 +137,29 @@ class AssetChecker:
         mtl_files = [p for p in Path(mesh_dir).iterdir() if p.suffix == '.mtl']
         for mtl_file in mtl_files:
             valid = True
+            kd_found = False
+            map_found = False
             with open(mtl_file) as f:
                 for line in f.readlines():
                     if 'Kd' in line and 'map_' not in line:
+                        kd_found = True
                         kd_vals = line.split(' ')[-3:]
                         kd_vals = [float(val.strip()) for val in kd_vals]
                         for val in kd_vals:
                             # We can go exact equality here
                             if val != 0.8:
                                 valid = False
+                    if 'map_Kd' in line:
+                        map_found = True
             if not valid:
                 self.add_error(model_name, Verbosity.ERR,
                                "Kd value in mtl different from default of 0.8")
-            if not valid and self.autofix is True:
-                self.fix_mtl(mtl_file)
+            if kd_found is True and map_found is False:
+                self.add_error(model_name, Verbosity.CRIT,
+                               "Material doesn't have a texture and uses diffuse value instead")
+            else:
+                if not valid and self.autofix is True:
+                    self.fix_mtl(mtl_file)
 
     def check_model_config(self, model_name, model_dir):
         # Checks .config file
@@ -200,10 +220,12 @@ class AssetChecker:
     def print_report(self, verbose):
         num_errors = 0
         for name, errors in self.errors.items():
-            if verbose >= Verbosity.ERR.value:
+            # Sort errors in severity
+            errors.sort()
+            if errors[0].severity <= Verbosity.CRIT:
                 print("Issues found in model " + name)
                 for err in errors:
-                    if verbose >= err.severity.value:
+                    if verbose >= err.severity:
                         print(err)
                         num_errors += 1
         print(str(len(self.model_dirs)) + " assets checked, " +
@@ -220,10 +242,10 @@ if __name__ == "__main__":
                     const=True, default=False,
                     help='Attempt to fix issues (experimental)')
     parser.add_argument('-v', dest='verbose', action='count',
-                    default=-1,
+                    default=0,
                     help='Verbosity level (INFO - WARN - ERR)')
     args = parser.parse_args()
     for path in args.model_paths:
         checker = AssetChecker(path, autofix=args.autofix)
         checker.check_models()
-        checker.print_report(verbose=args.verbose)
+        checker.print_report(verbose=Verbosity(args.verbose))
