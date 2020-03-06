@@ -27,16 +27,17 @@ class AssetError:
     COLORMAP = {Verbosity.INFO: '\033[94m', Verbosity.WARN: '\033[93m', Verbosity.ERR: '\033[91m',
             Verbosity.CRIT: '\033[91m', 'end': '\033[0m'}
 
-    def __init__(self, severity, message):
-        self.severity = severity
+    def __init__(self, verbosity, message):
+        self.verbosity = verbosity
         self.message = message
 
     def __str__(self):
-        return "\t" + self.COLORMAP[self.severity] + self.severity.name + ": " + self.message + self.COLORMAP['end']
+        return "\t" + self.COLORMAP[self.verbosity] + self.verbosity.name + ": " + self.message + self.COLORMAP['end']
 
-    # Used to sort in order of severity
+    # Used to sort in order of verbosity
     def __lt__(self, b):
-        return self.severity.value < b.severity.value
+        return self.verbosity.value < b.verbosity.value
+
 
 class AssetChecker:
 
@@ -49,10 +50,10 @@ class AssetChecker:
         self.errors = {}
         self.num_fixes = 0
 
-    def add_error(self, model_name, severity, message):
+    def add_error(self, model_name, verbosity, message):
         if model_name not in self.errors:
             self.errors[model_name] = []
-        self.errors[model_name].append(AssetError(severity, message))
+        self.errors[model_name].append(AssetError(verbosity, message))
 
     def check_model_name(self, model_name):
         # We are looking for CamelCase, so the string must have
@@ -226,12 +227,12 @@ class AssetChecker:
     def print_report(self, verbose):
         num_errors = 0
         for name, errors in self.errors.items():
-            # Sort errors in severity
+            # Sort errors in verbosity
             errors.sort()
-            if errors[0].severity <= verbose:
+            if errors[0].verbosity <= verbose:
                 print("Issues found in model " + name)
                 for err in errors:
-                    if verbose >= err.severity:
+                    if verbose >= err.verbosity:
                         print(err)
                         num_errors += 1
         print(str(len(self.model_dirs)) + " assets checked, " +
