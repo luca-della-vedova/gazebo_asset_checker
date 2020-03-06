@@ -143,16 +143,18 @@ class AssetChecker:
             valid = True
             kd_found = False
             map_found = False
+            # Mtl autofixable only if the Kd is white (all values are equal)
+            autofixable = True
             with open(mtl_file) as f:
                 for line in f.readlines():
                     if 'Kd' in line and 'map_' not in line:
                         kd_found = True
                         kd_vals = line.split(' ')[-3:]
                         kd_vals = [float(val.strip()) for val in kd_vals]
-                        for val in kd_vals:
-                            # We can go exact equality here
-                            if val != 0.8:
-                                valid = False
+                        if len(set(kd_vals)) > 1:
+                            autofixable = False
+                        if kd_vals.count(0.8) < len(kd_vals):
+                            valid = False
                     if 'map_Kd' in line:
                         map_found = True
             if not valid:
@@ -162,7 +164,7 @@ class AssetChecker:
                 self.add_error(model_name, Verbosity.CRIT,
                                "Material doesn't have a texture and uses diffuse value instead")
             else:
-                if not valid and self.autofix is True:
+                if not valid and self.autofix is True and autofixable is True:
                     self.fix_mtl(mtl_file)
 
     def check_model_config(self, model_name, model_dir):
