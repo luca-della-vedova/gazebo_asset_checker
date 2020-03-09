@@ -66,7 +66,7 @@ class AssetChecker:
                            "Model name not CamelCase")
 
     def check_texture_name(self, filename, model_name):
-        ALLOWED_TEXTURE_NAMES = ["Diffuse", "Normal", "Rough", "Metal"]
+        ALLOWED_TEXTURE_NAMES = ["Diffuse", "Normal", "Rough", "Metal", "SpecGloss"]
         # Make sure it is a legal texture name
         # ModelName.png is also acceptable, as a model thumbnail
         # TODO this rule also allows the texture to be specified as ModelName.png
