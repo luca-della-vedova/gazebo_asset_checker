@@ -51,8 +51,6 @@ class AssetChecker:
         self.num_fixes = 0
 
     def add_error(self, model_name, verbosity, message):
-        if model_name not in self.errors:
-            self.errors[model_name] = []
         self.errors[model_name].append(AssetError(verbosity, message))
 
     def check_model_name(self, model_name):
@@ -209,6 +207,7 @@ class AssetChecker:
 
     def check_model(self, model_dir):
         model_name = model_dir.rstrip('/').split('/')[-1]
+        self.errors[model_name] = []
         self.check_model_name(model_name)
         self.check_folder_structure(model_name, model_dir)
         # Rest of checks...
@@ -226,18 +225,24 @@ class AssetChecker:
 
     def print_report(self, verbose):
         num_errors = 0
+        good_assets = 0
         for name, errors in self.errors.items():
             # Sort errors in verbosity
             errors.sort()
-            if errors[0].verbosity <= verbose:
+            print(name + ":")
+            if len(errors) > 0 and errors[0].verbosity <= verbose:
                 print("Issues found in model " + name)
                 for err in errors:
                     if verbose >= err.verbosity:
                         print(err)
                         num_errors += 1
+            else:
+                print("\tOK")
+                good_assets += 1
         print(str(len(self.model_dirs)) + " assets checked, " +
               str(num_errors) + " errors found")
         print(str(self.num_fixes) + " errors fixed")
+        print(str(good_assets) + " assets without errors")
 
 
 if __name__ == "__main__":
