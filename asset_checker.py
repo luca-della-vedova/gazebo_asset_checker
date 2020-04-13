@@ -136,8 +136,6 @@ class AssetChecker:
         mtl_files = [p for p in Path(mesh_dir).iterdir() if p.suffix == '.mtl']
         for mtl_file in mtl_files:
             if mtl_file.stem.endswith('Col'):
-                self.add_error(model_name, Verbosity.WARN,
-                               "Collision meshes shouldn't have a material")
                 continue
             valid = True
             kd_found = False
